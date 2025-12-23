@@ -2,6 +2,7 @@ import streamlit as st
 import ccxt
 import pandas as pd
 import ta
+import time
 import json
 import os
 from datetime import datetime
@@ -10,140 +11,134 @@ from datetime import datetime
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
 DB_FILE = "trade_db.json"
 
-# --- VERİTABANI OTOMATİK ONARICI ---
+# --- TERTEMİZ VERİ YÜKLEME ---
 def load_db():
-    default_data = {"balance": 1027.0, "trades": [], "lessons": []}
-    if not os.path.exists(DB_FILE): return default_data
-    try:
-        with open(DB_FILE, "r") as f:
-            data = json.load(f)
-            # Eğer dosya boşsa veya hatalıysa default dön
-            if not data or not isinstance(data, dict): return default_data
-            
-            # Eksik ana bölümleri ekle
-            if "lessons" not in data: data["lessons"] = []
-            if "trades" not in data: data["trades"] = []
-            
-            # Her bir işlemi tek tek tara ve eksik sütunları yamala
-            for t in data["trades"]:
-                if "pattern" not in t: t["pattern"] = "Genel"
-                if "pnl_final" not in t: t["pnl_final"] = 0.0
-                if "status" not in t: t["status"] = "Kapandı"
-            return data
-    except: return default_data
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+                # Sadece temel verileri al, karmaşayı temizle
+                clean_data = {
+                    "balance": data.get("balance", 1027.0),
+                    "trades": [t for t in data.get("trades", []) if "coin" in t]
+                }
+                return clean_data
+        except: pass
+    return {"balance": 1027.0, "trades": []}
 
 def save_db(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f)
 
-# Verileri güvenle yükle
 db_data = load_db()
 if 'balance' not in st.session_state: st.session_state.balance = db_data["balance"]
 if 'trades' not in st.session_state: st.session_state.trades = db_data["trades"]
-if 'lessons' not in st.session_state: st.session_state.lessons = db_data["lessons"]
 
-# --- PDF ZEKA MOTORU: FORMASYON & TEYİT ---
-def detect_patterns(df):
-    last = df.iloc[-1]
-    prev = df.iloc[-2]
-    body = abs(last['c'] - last['o'])
-    
-    # 1. Bullish Hammer (Çekiç Boğa) - PDF Sayfa 6/24
-    # Alt gölge gövdenin 2 katından büyük, üst gölge yok denecek kadar az
-    is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 2) and (last['h'] - max(last['o'], last['c'])) < (body * 0.5)
-    
-    # 2. Bullish Engulfing (Yutan Boğa) - PDF Sayfa 6
-    is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and prev['c'] < prev['o']
-    
-    # 3. Bearish Shooting Star (Kayan Yıldız) - PDF Sayfa 12
-    is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 2) and (min(last['o'], last['c']) - last['l']) < (body * 0.5)
+def get_market_analysis(symbol):
+    try:
+        bars = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=100)
+        df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
+        df['RSI'] = ta.momentum.rsi(df['c'], window=14)
+        indicator_bb = ta.volatility.BollingerBands(close=df["c"], window=20, window_dev=2)
+        df['bb_h'] = indicator_bb.bollinger_hband()
+        df['bb_l'] = indicator_bb.bollinger_lband()
+        last = df.iloc[-1]
+        return {"price": last['c'], "rsi": round(last['RSI'], 2), "bb_h": last['bb_h'], "bb_l": last['bb_l']}
+    except: return None
 
-    if is_hammer or is_engulfing: return "LONG", "Hammer/Engulfing"
-    if is_shooting_star: return "SHORT", "ShootingStar"
-    return None, None
-
-st.set_page_config(page_title="OKX Master V17.3", layout="wide")
-st.title("🏹 OKX Hunter V17.3: Mum Akademisi")
+st.set_page_config(page_title="OKX Hunter V18", layout="wide")
+st.title("🏹 OKX Hunter V18: Seri Mod")
 
 # ÜST PANEL
-active_trades = [t for t in st.session_state.trades if t['status'] == 'Açık']
+active_trades = [t for t in st.session_state.trades if t.get('status') == 'Açık']
 c1, c2, c3 = st.columns(3)
-c1.metric("💰 Kasa Bakiyesi", f"${st.session_state.balance:.2f}")
-c2.metric("🔄 Aktif Pozisyonlar", f"{len(active_trades)} / 5")
-c3.info("Zaman Stopu: 10 DK | Formasyon Teyidi: AKTİF")
+c1.metric("💰 Mevcut Kasa", f"${st.session_state.balance:.2f}")
+c2.metric("🔄 Aktif Pozlar", f"{len(active_trades)} / 5")
+c3.success("Strateji: RSI + Bollinger (10dk Limit)")
 
-# --- AKTİF POZİSYON TAKİBİ ---
+# --- AKTİF POZİSYONLAR ---
 if active_trades:
-    st.subheader("🚀 Mevcut İşlemler")
-    for i, trade in enumerate(st.session_state.trades):
-        if trade['status'] == 'Açık':
+    st.subheader("🚀 Aktif Pozisyonlar")
+    for trade in st.session_state.trades:
+        if trade.get('status') == 'Açık':
             try:
                 curr_p = exchange.fetch_ticker(trade['coin'])['last']
-                pnl_usd = (trade['margin'] * ((curr_p - trade['entry']) / trade['entry']) * 100 * (10 if trade['side'] == 'LONG' else -10)) / 100
-                duration = (datetime.now() - datetime.strptime(trade['time'], '%Y-%m-%d %H:%M:%S.%f')).total_seconds() / 60
+                # PNL Hesaplama
+                pnl_pct = ((curr_p - trade['entry']) / trade['entry']) * 100 * (trade['kaldırac'] if trade['side'] == 'LONG' else -trade['kaldırac'])
+                pnl_usd = (trade['margin'] * pnl_pct) / 100
+                
+                # Süre Hesaplama
+                start_time = datetime.strptime(trade['time'], '%Y-%m-%d %H:%M:%S.%f')
+                duration_mins = (datetime.now() - start_time).total_seconds() / 60
 
                 with st.container(border=True):
-                    col1, col2, col3 = st.columns([1, 2, 1])
+                    col1, col2, col3 = st.columns([1.5, 2, 1])
                     with col1:
-                        st.write(f"**{trade['coin']}**")
-                        st.write(f"Yön: {trade['side']}")
-                        st.caption(f"Tip: {trade.get('pattern', 'Genel')}")
+                        st.write(f"### {trade['coin']}")
+                        color = "green" if trade['side'] == "LONG" else "red"
+                        st.markdown(f"**Yön:** :{color}[{trade['side']}] | **{trade['kaldırac']}x**")
+                        st.write(f"**Teminat:** ${trade['margin']}")
+                        st.caption(f"⏱️ {int(duration_mins)} dk'dır açık")
                     with col2:
                         st.write(f"📌 Giriş: {trade['entry']} | ⚡ Anlık: {curr_p}")
-                        st.write(f"⏱️ Süre: {int(duration)} dk")
+                        st.write(f"🎯 TP: {trade['tp']} | 🛡️ SL: {trade['sl']}")
                     with col3:
-                        st.metric("P/L USD", f"${pnl_usd:.2f}")
+                        st.metric("P/L USD", f"${pnl_usd:.2f}", f"{pnl_pct:.2f}%")
 
-                # Kapatma Mantığı
-                if pnl_usd <= -3.5 or pnl_usd >= 5.0 or duration >= 10:
-                    if pnl_usd < 0:
-                        st.session_state.lessons.append(f"{trade['coin']} - {trade['pattern']} başarısız. PDF Teyidi yetersiz kaldı.")
-                    
+                # KAPATMA MANTIĞI: TP/SL veya 10 DAKİKA KURALI
+                is_target = (trade['side'] == 'LONG' and (curr_p >= trade['tp'] or curr_p <= trade['sl'])) or \
+                            (trade['side'] == 'SHORT' and (curr_p <= trade['tp'] or curr_p >= trade['sl']))
+                
+                # 10 dakika geçtiyse ve kar/zarar varsa hemen kapat (Zaman Stopu)
+                if is_target or duration_mins >= 10:
                     st.session_state.balance += pnl_usd
                     idx = st.session_state.trades.index(trade)
                     st.session_state.trades[idx]['status'] = 'Kapandı'
                     st.session_state.trades[idx]['pnl_final'] = round(pnl_usd, 2)
-                    save_db({"balance": st.session_state.balance, "trades": st.session_state.trades, "lessons": st.session_state.lessons})
+                    save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
                     st.rerun()
             except: continue
 
 st.divider()
 
-# --- TARAMA SİSTEMİ (PDF ANALİZLİ) ---
+# --- TARAMA SİSTEMİ ---
 if len(active_trades) < 5:
+    st.subheader("🎯 Alpha Sinyal Gözlemcisi")
     all_syms = [s for s in exchange.load_markets() if '/USDT' in s][:200]
+    pending_list = []
+    
     for s in all_syms:
         if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
-        try:
-            bars = exchange.fetch_ohlcv(s, timeframe='5m', limit=50)
-            df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
-            side, name = detect_patterns(df)
+        a = get_market_analysis(s)
+        if a:
+            side = None
+            if a['rsi'] < 38 and a['price'] < a['bb_l']: side = "LONG"
+            elif a['rsi'] > 62 and a['price'] > a['bb_h']: side = "SHORT"
             
+            if (a['rsi'] < 45 or a['rsi'] > 55):
+                pending_list.append({"Coin": s, "RSI": a['rsi'], "Fiyat": a['price']})
+
             if side:
                 new_trade = {
-                    "coin": s, "side": side, "entry": df.iloc[-1]['c'], "pattern": name,
-                    "tp": round(df.iloc[-1]['c'] * (1.02 if side == "LONG" else 0.98), 5),
-                    "sl": round(df.iloc[-1]['c'] * (0.992 if side == "LONG" else 1.008), 5),
+                    "coin": s, "side": side, "entry": a['price'],
+                    "tp": round(a['price'] * (1.02 if side == "LONG" else 0.98), 5),
+                    "sl": round(a['price'] * (0.992 if side == "LONG" else 1.008), 5),
                     "margin": 50.0, "kaldırac": 10, "status": "Açık", "time": str(datetime.now())
                 }
                 st.session_state.trades.append(new_trade)
-                save_db({"balance": st.session_state.balance, "trades": st.session_state.trades, "lessons": st.session_state.lessons})
+                save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
                 st.rerun()
-        except: continue
+    
+    if pending_list:
+        st.write("🔎 **Radardaki Coinler:**")
+        st.dataframe(pd.DataFrame(pending_list).sort_values(by="RSI").head(10), use_container_width=True)
 
-# --- GÜVENLİ TABLOLAR ---
-c_bot1, c_bot2 = st.columns(2)
-with c_bot1:
-    st.subheader("📜 Son İşlemler")
-    if st.session_state.trades:
-        df_h = pd.DataFrame([t for t in st.session_state.trades if t['status'] == 'Kapandı'])
-        if not df_h.empty:
-            # Hata vermemesi için sadece var olan sütunları seç
-            valid_cols = [c for c in ['time', 'coin', 'side', 'pnl_final'] if c in df_h.columns]
-            st.dataframe(df_h[valid_cols][::-1], use_container_width=True)
-
-with c_bot2:
-    st.subheader("🎓 Öğrenilen Dersler")
-    for l in st.session_state.lessons[-5:][::-1]: st.write(f"- {l}")
+# İŞLEM GEÇMİŞİ
+st.subheader("📜 İşlem Geçmişi")
+if st.session_state.trades:
+    df_h = pd.DataFrame([t for t in st.session_state.trades if t.get('status') == 'Kapandı'])
+    if not df_h.empty:
+        st.dataframe(df_h[['time', 'coin', 'side', 'entry', 'pnl_final']][::-1], use_container_width=True)
 
 time.sleep(15)
 st.rerun()
