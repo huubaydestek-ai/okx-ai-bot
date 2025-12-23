@@ -7,9 +7,9 @@ import json
 import os
 from datetime import datetime
 
-# OKX Global - %100 Stabil & Agresif Bağlantı
+# OKX Global - Otonom Bağlantı
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
-DB_FILE = "aggressive_hunter_db.json"
+DB_FILE = "autonomous_sniper_db.json"
 
 def load_db():
     default = {"balance": 981.0, "trades": []}
@@ -26,48 +26,46 @@ def save_db(balance, trades):
 db_data = load_db()
 st.session_state.update(db_data)
 
-# --- AGRESİF 15M KIRILIM METODU (AVAX Stili) ---
-def get_pa_signal(df):
+# --- BOTUN ÖĞRENDİĞİ OTONOM FİYAT HAREKETİ ---
+def get_autonomous_signal(df):
     if len(df) < 20: return None
     last = df.iloc[-1]
-    # Son 15 mumun zirve ve dibi (Hızlı tepki için aralığı daralttık)
-    res = df['h'].iloc[-15:-1].max() 
-    sup = df['l'].iloc[-15:-1].min()
-    rsi = ta.momentum.rsi(df['c'], window=14).iloc[-1]
+    # Fiyatın sıkıştığı kutunun sınırları (image_1da565.png)
+    resistance = df['h'].iloc[-15:-1].max() 
+    support = df['l'].iloc[-15:-1].min()
     
-    # SHORT: Mavi çizgi altı kapanış (AVAX gibi)
-    if last['c'] < sup and rsi < 60: return "SHORT"
-    # LONG: Sarı çizgi üstü kapanış
-    if last['c'] > res and rsi > 40: return "LONG"
+    # Bot artık sadece fiyata bakar: Kırılım var mı?
+    if last['c'] > resistance: return "LONG"
+    if last['c'] < support: return "SHORT"
     return None
 
-st.set_page_config(page_title="Aggressive Hunter V21.5", layout="wide")
+st.set_page_config(page_title="Autonomous Sniper V22.0", layout="wide")
 
 st.markdown("""
     <style>
     .trade-card {
-        background-color: #0d1117;
-        border-radius: 12px;
+        background-color: #0b0e11;
+        border-radius: 10px;
         padding: 20px;
-        border: 1px solid #30363d;
-        margin-bottom: 15px;
+        border: 1px solid #2b2f36;
+        margin-bottom: 10px;
     }
-    .pnl-pos { color: #00ff88; font-weight: bold; font-size: 1.8em; }
-    .pnl-neg { color: #f85149; font-weight: bold; font-size: 1.8em; }
+    .pnl-pos { color: #00ff88; font-weight: bold; }
+    .pnl-neg { color: #ff4b4b; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏹 OKX Sniper: Aggressive Hunter")
+st.title("🤖 OKX Autonomous Sniper: Serbest Mod")
 
 active_trades = [t for t in st.session_state.trades if t.get('status') == 'Açık']
 
 # PANEL
 c1, c2, c3 = st.columns(3)
-c1.metric("💰 Kasa", f"${st.session_state.balance:.2f}")
-c2.metric("🔄 Aktif", f"{len(active_trades)} / 5")
-c3.warning("Mod: Agresif 15m (Full Throttle)")
+c1.metric("💰 Mevcut Kasa", f"${st.session_state.balance:.2f}")
+c2.metric("🔄 Aktif İşlem", f"{len(active_trades)} / 5")
+c3.info("Durum: Kendi Haline Bırakıldı (Full Action)")
 
-# --- POZİSYON TAKİBİ ---
+# --- TAKİP SİSTEMİ ---
 if active_trades:
     for idx, trade in enumerate(st.session_state.trades):
         if trade.get('status') == 'Açık':
@@ -80,14 +78,13 @@ if active_trades:
                 st.markdown(f"""
                 <div class="trade-card">
                     <div style="display: flex; justify-content: space-between;">
-                        <span style="font-size: 1.4em;"><b>{trade['coin']}</b> ({trade['side']})</span>
-                        <span class="{'pnl-pos' if pnl_usd >= 0 else 'pnl-neg'}">${pnl_usd:.2f} (%{pnl_pct:.2f})</span>
+                        <b>{trade['coin']} | {trade['side']}</b>
+                        <span class="{'pnl-pos' if pnl_usd >= 0 else 'pnl-neg'}">%{pnl_pct:.2f} (${pnl_usd:.2f})</span>
                     </div>
-                    <p style="color: gray; margin: 5px 0;">8x İzole | Giriş: {trade['entry']} | Anlık: {curr_p}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button(f"KAPAT: {trade['coin']}", key=f"btn_{idx}"):
+                if st.button(f"Manuel Kapat: {trade['coin']}", key=f"close_{idx}"):
                     st.session_state.balance += pnl_usd
                     st.session_state.trades[idx]['status'] = 'Kapandı'
                     save_db(st.session_state.balance, st.session_state.trades)
@@ -100,23 +97,19 @@ if active_trades:
                     st.rerun()
             except: continue
 
-# --- HIZLI TARAMA ---
+# --- SERBEST TARAMA ---
 if len(active_trades) < 5:
-    with st.status("🚀 Pusuya Yatıldı, Kırılım Bekleniyor...", expanded=True):
+    with st.status("🚀 Bot Kendi Kararını Veriyor...", expanded=True):
         try:
             markets = exchange.load_markets()
             all_syms = [s for s, m in markets.items() if m.get('swap') and '/USDT' in s]
-            # En aktif 100 pariteyi tara
-            for s in all_syms[:100]:
+            for s in all_syms[:120]: # Daha fazla coin
                 if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
                 if len([t for t in st.session_state.trades if t.get('status') == 'Açık']) >= 5: break
                 
-                ticker = exchange.fetch_ticker(s)
-                if ticker.get('quoteVolume', 0) < 150000: continue
-                
                 bars = exchange.fetch_ohlcv(s, timeframe='15m', limit=30)
                 df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
-                side = get_pa_signal(df)
+                side = get_autonomous_signal(df)
                 
                 if side:
                     margin_v = st.session_state.balance * 0.10
@@ -126,5 +119,5 @@ if len(active_trades) < 5:
                     st.rerun()
         except: pass
 
-time.sleep(3) # Döngüyü hızlandırdık
+time.sleep(2)
 st.rerun()
