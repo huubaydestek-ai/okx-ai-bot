@@ -38,13 +38,13 @@ def detect_patterns(df):
     prev = df.iloc[-2]
     body = abs(last['c'] - last['o'])
     
-    # Bullish Hammer (Çekiç Boğa) -
+    # Bullish Hammer (Çekiç Boğa)
     is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 2) and (last['h'] - max(last['o'], last['c'])) < body
     
-    # Bullish Engulfing (Yutan Boğa) -
+    # Bullish Engulfing (Yutan Boğa)
     is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and prev['c'] < prev['o']
     
-    # Bearish Shooting Star (Kayan Yıldız) -
+    # Bearish Shooting Star (Kayan Yıldız)
     is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 2) and (min(last['o'], last['c']) - last['l']) < body
 
     if is_hammer or is_engulfing: return "LONG", "Hammer/Engulfing"
