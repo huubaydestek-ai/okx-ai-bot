@@ -27,19 +27,23 @@ if 'trades' not in st.session_state: st.session_state.trades = db_data["trades"]
 
 def get_market_analysis(symbol):
     try:
-        bars = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
+        # Analizi 5 dakikalık periyoda çekiyoruz (Daha hızlı sinyal)
+        bars = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=100)
         df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
         df['RSI'] = ta.momentum.rsi(df['c'], window=14)
         df['EMA_20'] = ta.trend.ema_indicator(df['c'], window=20)
-        df['EMA_50'] = ta.trend.ema_indicator(df['c'], window=50)
         last = df.iloc[-1]
         
         side = None
-        if last['v'] > df['v'].mean(): # Hacim onayı
-            if last['EMA_20'] > last['EMA_50'] and last['RSI'] < 35: side = "LONG"
-            if last['EMA_20'] < last['EMA_50'] and last['RSI'] > 65: side = "SHORT"
+        # RSI 40/60 kuralı ve EMA teması (Daha sık işlem üretir)
+        if last['RSI'] < 40 and last['c'] < last['EMA_20']:
+            side = "LONG"
+        elif last['RSI'] > 60 and last['c'] > last['EMA_20']:
+            side = "SHORT"
+            
         return side, last['c']
-    except: return None, None
+    except:
+        return None, None
 
 st.set_page_config(page_title="OKX AI Memory Bot", layout="wide")
 st.title("🧠 OKX AI: Hafızalı Strateji Paneli")
@@ -71,7 +75,7 @@ for i, trade in enumerate(st.session_state.trades):
 
 # TARAMA
 if len(active_trades) < 3:
-    all_syms = [s for s in exchange.load_markets() if '/USDT' in s][:40]
+    all_syms = [s for s in exchange.load_markets() if '/USDT' in s][:100]
     for s in all_syms:
         if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
         side, price = get_market_analysis(s)
@@ -93,3 +97,4 @@ if st.session_state.trades:
 
 time.sleep(15)
 st.rerun()
+
