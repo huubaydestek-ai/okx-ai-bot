@@ -1,3 +1,4 @@
+import streamlit as st
 import ccxt
 import pandas as pd
 import ta
@@ -6,11 +7,12 @@ import json
 import os
 from datetime import datetime
 
-# OKX Bağlantısı
+# OKX Global - Tek Parça Stabil Bağlantı
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
-DB_FILE = "pa_15m_master_db.json"
+DB_FILE = "stabil_sniper_db.json"
 
 def load_db():
+    # Güncel kasanı 981$ olarak buraya çiviledim kanka
     default = {"balance": 981.0, "trades": []}
     if os.path.exists(DB_FILE):
         try:
@@ -18,65 +20,86 @@ def load_db():
         except: return default
     return default
 
-def save_db(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
+def save_db(balance, trades):
+    with open(DB_FILE, "w") as f: json.dump({"balance": balance, "trades": trades}, f)
 
-# --- SENİN STRATEJİN: 15M KIRILIM ---
+db_data = load_db()
+st.session_state.update(db_data)
+
+# --- SENİN MANUEL STRATEJİN: 15M KIRILIM ---
 def get_15m_signal(df):
     if len(df) < 25: return None
     last = df.iloc[-1]
-    resistance = df['h'].iloc[-20:-1].max() # Sarı çizgi
-    support = df['l'].iloc[-20:-1].min()    # Mavi çizgi
+    # Son 20 mumun (15m x 20) zirve ve dip noktaları (Sarı ve Mavi çizgilerin)
+    resistance = df['h'].iloc[-20:-1].max() 
+    support = df['l'].iloc[-20:-1].min()
     rsi = ta.momentum.rsi(df['c'], window=14).iloc[-1]
     
+    # Kırılım Geldi mi? (Atomu parçalamıyoruz, fiyata bakıyoruz)
     if last['c'] > resistance and 45 < rsi < 65: return "LONG"
     if last['c'] < support and 35 < rsi < 55: return "SHORT"
     return None
 
-print("🚀 Bot Motoru Başlatıldı... 7/24 Tarama Aktif.")
+st.set_page_config(page_title="OKX 15m Sniper", layout="wide")
+st.title("🎯 OKX 15m Sniper: 981$ Real Time")
 
-while True:
-    try:
-        data = load_db()
-        active_trades = [t for t in data['trades'] if t['status'] == 'Açık']
-        
-        # 1. MEVCUT POZİSYONLARI KONTROL ET (TP/SL)
-        for i, trade in enumerate(data['trades']):
-            if trade['status'] == 'Açık':
+active_trades = [t for t in st.session_state.trades if t.get('status') == 'Açık']
+
+# PANEL
+c1, c2, c3 = st.columns(3)
+c1.metric("💰 Mevcut Kasa", f"${st.session_state.balance:.2f}")
+c2.metric("🔄 Aktif İşlemler", f"{len(active_trades)} / 5")
+c3.success("Mod: 15 Dakikalık Kırılım (8x İzole)")
+
+# --- POZİSYON TAKİBİ ---
+if active_trades:
+    for idx, trade in enumerate(st.session_state.trades):
+        if trade.get('status') == 'Açık':
+            try:
                 ticker = exchange.fetch_ticker(trade['coin'])
                 curr_p = ticker['last']
                 pnl_pct = ((curr_p - trade['entry']) / trade['entry']) * 100 * (8 if trade['side'] == 'LONG' else -8)
+                pnl_usd = (trade['margin'] * pnl_pct) / 100
                 
-                if pnl_pct >= 8.5 or pnl_pct <= -5.0:
-                    pnl_usd = (trade['margin'] * pnl_pct) / 100
-                    data['balance'] += pnl_usd
-                    data['trades'][i]['status'] = 'Kapandı'
-                    print(f"✅ {trade['coin']} Kapatıldı. P/L: %{pnl_pct:.2f}")
-                    save_db(data)
+                with st.container(border=True):
+                    cl1, cl2, cl3 = st.columns([3, 2, 1])
+                    cl1.write(f"### {trade['coin']} | {trade['side']}")
+                    cl2.metric("P/L %", f"{pnl_pct:.2f}%", f"${pnl_usd:.2f}")
+                    if cl3.button("KAPAT", key=f"cl_final_{idx}"):
+                        st.session_state.balance += pnl_usd
+                        st.session_state.trades[idx]['status'] = 'Kapandı'
+                        save_db(st.session_state.balance, st.session_state.trades)
+                        st.rerun()
 
-        # 2. YENİ FIRSAT ARA
-        if len([t for t in data['trades'] if t['status'] == 'Açık']) < 5:
-            markets = exchange.load_markets()
-            all_syms = [s for s, m in markets.items() if m.get('swap') and '/USDT' in s]
+                # TP/SL Hedefi: %8.5 Kar / %5 Zarar
+                if pnl_pct >= 8.5 or pnl_pct <= -5.0:
+                    st.session_state.balance += pnl_usd
+                    st.session_state.trades[idx]['status'] = 'Kapandı'
+                    save_db(st.session_state.balance, st.session_state.trades)
+                    st.rerun()
+            except: continue
+
+# --- 15M TARAMA ---
+if len(active_trades) < 5:
+    with st.status("🔎 15 Dakikalık Grafiklerde Senin Stratejin Aranıyor...", expanded=True):
+        markets = exchange.load_markets()
+        all_syms = [s for s, m in markets.items() if m.get('swap') and '/USDT' in s]
+        
+        for s in all_syms[:70]:
+            if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
+            if len([t for t in st.session_state.trades if t.get('status') == 'Açık']) >= 5: break
             
-            for s in all_syms[:80]:
-                if any(t['coin'] == s and t['status'] == 'Açık' for t in data['trades']): continue
+            try:
+                # 300k$ Hacim Şartı
                 ticker = exchange.fetch_ticker(s)
-                if ticker.get('quoteVolume', 0) < 250000: continue
-                
+                if ticker.get('quoteVolume', 0) < 300000: continue
+
                 bars = exchange.fetch_ohlcv(s, timeframe='15m', limit=40)
                 df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
                 side = get_15m_signal(df)
                 
                 if side:
-                    margin = data['balance'] * 0.10
-                    new_trade = {"coin": s, "side": side, "entry": df['c'].iloc[-1], "margin": round(margin, 2), "status": "Açık", "time": str(datetime.now())}
-                    data['trades'].append(new_trade)
-                    save_db(data)
-                    print(f"🎯 YENİ İŞLEM: {s} ({side})")
-                    break # Her döngüde bir tane aç, sistemi yorma
-
-    except Exception as e:
-        print(f"⚠️ Hata: {e}")
-    
-    time.sleep(10) # 10 saniyede bir döngü
+                    margin_val = st.session_state.balance * 0.10
+                    new_trade = {"coin": s, "side": side, "entry": df['c'].iloc[-1], "margin": round(margin_val, 2), "status": "Açık", "time": str(datetime.now())}
+                    st.session_state.trades.append(new_trade)
+                    save_db(st.
