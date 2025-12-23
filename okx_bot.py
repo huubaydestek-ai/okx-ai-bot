@@ -20,91 +20,93 @@ def load_db():
     return {"balance": 1048.0, "trades": []}
 
 def save_db(data):
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f)
+    with open(DB_FILE, "w") as f: json.dump(data, f)
 
 db_data = load_db()
-if 'balance' not in st.session_state: st.session_state.balance = db_data["balance"]
-if 'trades' not in st.session_state: st.session_state.trades = db_data["trades"]
+st.session_state.update(db_data)
 
-st.set_page_config(page_title="OKX Hunter V18.4", layout="wide")
-st.title("🛡️ OKX Hunter V18.4: Toparlanma Modu")
+# --- PDF'TEN ÖĞRENİLEN FORMASYON ZEKA SİSTEMİ ---
+def get_pdf_signal(df):
+    last = df.iloc[-1]
+    prev = df.iloc[-2]
+    body = abs(last['c'] - last['o'])
+    
+    # PDF Sayfa 6/24: Bullish Hammer (Çekiç) - Dipten Dönüş
+    is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 2) and (last['h'] - max(last['o'], last['c'])) < (body * 0.5)
+    
+    # PDF Sayfa 6: Bullish Engulfing (Yutan)
+    is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and prev['c'] < prev['o']
+    
+    # PDF Sayfa 12: Shooting Star (Ayı Sinyali)
+    is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 2) and (min(last['o'], last['c']) - last['l']) < (body * 0.5)
+
+    if (is_hammer or is_engulfing): return "LONG"
+    if is_shooting_star: return "SHORT"
+    return None
+
+st.set_page_config(page_title="OKX Hunter V19", layout="wide")
+st.title("🏹 OKX Hunter V19: Sniper Mod")
 
 # --- ÜST PANEL ---
 active_trades = [t for t in st.session_state.trades if t.get('status') == 'Açık']
 c1, c2, c3 = st.columns(3)
 c1.metric("💰 Kasa", f"${st.session_state.balance:.2f}")
 c2.metric("🔄 Aktif Pozlar", f"{len(active_trades)} / 5")
-c3.error("Mod: Hacim Odaklı & Sıkı Filtre")
+c3.info("Zeka: PDF Formasyon + Hacim Filtresi")
 
-# --- AKTİF POZİSYONLAR ---
+# --- AKTİF POZİSYONLAR VE MANUEL KAPAT ---
 if active_trades:
-    st.subheader("🚀 Mevcut Pozlar")
     for idx, trade in enumerate(st.session_state.trades):
         if trade.get('status') == 'Açık':
             try:
                 ticker = exchange.fetch_ticker(trade['coin'])
                 curr_p = ticker['last']
-                pnl_pct = ((curr_p - trade['entry']) / trade['entry']) * 100 * (10 if trade['side'] == 'LONG' else -10)
-                pnl_usd = (trade['margin'] * pnl_pct) / 100
-                duration_mins = (datetime.now() - datetime.strptime(trade['time'], '%Y-%m-%d %H:%M:%S.%f')).total_seconds() / 60
+                pnl_usd = (trade['margin'] * ((curr_p - trade['entry']) / trade['entry']) * 100 * (10 if trade['side'] == 'LONG' else -10)) / 100
+                duration = (datetime.now() - datetime.strptime(trade['time'], '%Y-%m-%d %H:%M:%S.%f')).total_seconds() / 60
 
                 with st.container(border=True):
                     col1, col2, col3, col4 = st.columns([1.5, 2, 1, 1])
-                    with col1:
-                        st.write(f"**{trade['coin']}** ({trade['side']})")
-                        st.caption(f"⏱️ {int(duration_mins)} dk")
-                    with col2:
-                        st.write(f"G: {trade['entry']} | A: {curr_p}")
-                    with col3:
-                        st.metric("P/L USD", f"${pnl_usd:.2f}")
-                    with col4:
-                        if st.button("KAPAT", key=f"cl_{trade['coin']}_{idx}"):
-                            st.session_state.balance += pnl_usd
-                            st.session_state.trades[idx]['status'] = 'Kapandı'
-                            st.session_state.trades[idx]['pnl_final'] = round(pnl_usd, 2)
-                            save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
-                            st.rerun()
+                    col1.write(f"**{trade['coin']}** ({trade['side']})")
+                    col2.write(f"Giriş: {trade['entry']} | Anlık: {curr_p}")
+                    col3.metric("P/L USD", f"${pnl_usd:.2f}")
+                    if col4.button("KAPAT", key=f"manual_{idx}"):
+                        st.session_state.balance += pnl_usd
+                        st.session_state.trades[idx]['status'] = 'Kapandı'
+                        st.session_state.trades[idx]['pnl_final'] = round(pnl_usd, 2)
+                        save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
+                        st.rerun()
 
-                # AKILLI TAHLİYE: 10 dk limit veya sert zarar
-                if duration_mins >= 10 or pnl_usd <= -3.5 or pnl_usd >= 6.0:
+                if duration >= 10 or pnl_usd <= -3.8 or pnl_usd >= 6.0:
                     st.session_state.balance += pnl_usd
                     st.session_state.trades[idx]['status'] = 'Kapandı'
-                    st.session_state.trades[idx]['pnl_final'] = round(pnl_usd, 2)
                     save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
                     st.rerun()
             except: continue
 
-# --- HACİM ODAKLI TARAMA ---
+# --- SNIPER TARAMA (HACİM + PDF) ---
 if len(active_trades) < 5:
-    st.subheader("🔎 Hacimli Coin Arama")
-    symbols = [s for s in exchange.load_markets() if '/USDT' in s][:150]
+    st.subheader("🔎 Kaliteli Fırsat Aranıyor...")
+    symbols = [s for s in exchange.load_markets() if '/USDT' in s][:120]
     for s in symbols:
         if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
         if len([t for t in st.session_state.trades if t.get('status') == 'Açık']) >= 5: break
         
         try:
-            # Hacim Kontrolü Ekledik
             ticker = exchange.fetch_ticker(s)
-            hacim_24h = ticker.get('quoteVolume', 0)
-            if hacim_24h < 5000000: continue # 5 Milyon dolar altı hacmi olanlara bakma (Ölü coin önleyici)
+            if ticker.get('quoteVolume', 0) < 3000000: continue # Hacim alt sınırı (3M$ - Biraz esnettim sinyal gelsin diye)
 
             bars = exchange.fetch_ohlcv(s, timeframe='5m', limit=50)
             df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
+            
+            # PDF Sinyali + RSI Onayı
+            pdf_side = get_pdf_signal(df)
             rsi = ta.momentum.rsi(df['c'], window=14).iloc[-1]
-            bb = ta.volatility.BollingerBands(df['c'])
-            bb_h, bb_l = bb.bollinger_hband().iloc[-1], bb.bollinger_lband().iloc[-1]
-            curr_fiyat = df['c'].iloc[-1]
             
-            side = None
-            if rsi < 32 and curr_fiyat < bb_l: side = "LONG" # Daha sıkı giriş
-            elif rsi > 68 and curr_fiyat > bb_h: side = "SHORT" # Daha sıkı giriş
-            
-            if side:
+            if (pdf_side == "LONG" and rsi < 40) or (pdf_side == "SHORT" and rsi > 60):
                 new_t = {
-                    "coin": s, "side": side, "entry": curr_fiyat,
-                    "tp": round(curr_fiyat * (1.02 if side == "LONG" else 0.98), 6),
-                    "sl": round(curr_fiyat * (0.993 if side == "LONG" else 1.007), 6),
+                    "coin": s, "side": pdf_side, "entry": df['c'].iloc[-1],
+                    "tp": round(df['c'].iloc[-1] * (1.025 if pdf_side == "LONG" else 0.975), 6),
+                    "sl": round(df['c'].iloc[-1] * (0.99 if pdf_side == "LONG" else 1.01), 6),
                     "margin": 50.0, "kaldırac": 10, "status": "Açık", "time": str(datetime.now())
                 }
                 st.session_state.trades.append(new_t)
