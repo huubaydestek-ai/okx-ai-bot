@@ -11,12 +11,19 @@ from datetime import datetime
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
 DB_FILE = "trade_db.json"
 
+# --- VERİTABANI VE HATA DÜZELTME ---
 def load_db():
+    default_data = {"balance": 1007.65, "trades": []}
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r") as f: return json.load(f)
-        except: return {"balance": 1007.65, "trades": []}
-    return {"balance": 1000.0, "trades": []}
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+                # Eksik sütunları kontrol et ve ekle
+                for t in data.get("trades", []):
+                    if "pnl_final" not in t: t["pnl_final"] = 0
+                return data
+        except: return default_data
+    return default_data
 
 def save_db(data):
     with open(DB_FILE, "w") as f: json.dump(data, f)
@@ -37,30 +44,29 @@ def get_market_analysis(symbol):
         return {"price": last['c'], "rsi": round(last['RSI'], 2), "bb_h": last['bb_h'], "bb_l": last['bb_l']}
     except: return None
 
-st.set_page_config(page_title="OKX Hunter V13", layout="wide")
-st.title("🛡️ OKX Hunter V13: Güvenlik Odaklı Mod")
+st.set_page_config(page_title="OKX Hunter V13.1", layout="wide")
+st.title("🛡️ OKX Hunter V13.1: Güvenlik & Fix")
 
 # ÜST PANEL
 active_trades = [t for t in st.session_state.trades if t['status'] == 'Açık']
 c1, c2, c3 = st.columns(3)
 c1.metric("💰 Mevcut Kasa", f"${st.session_state.balance:.2f}")
 c2.metric("🔄 Aktif Pozlar", f"{len(active_trades)} / 5")
-c3.warning("Mod: İZOLE | Risk: 10x | Liq Takibi: AKTİF")
+c3.warning("Güvenlik: LİQ TAKİBİ AKTİF")
 
 # --- AKTİF POZİSYONLAR VE LİQ TAKİBİ ---
 if active_trades:
-    st.subheader("🚀 Aktif Pozisyonlar (Güvenlik Detaylı)")
+    st.subheader("🚀 Aktif Pozisyonlar")
     for i, trade in enumerate(st.session_state.trades):
         if trade['status'] == 'Açık':
             try:
                 curr_p = exchange.fetch_ticker(trade['coin'])['last']
             except: continue
             
-            # PNL Hesaplama
             pnl_pct = ((curr_p - trade['entry']) / trade['entry']) * 100 * (trade['kaldırac'] if trade['side'] == 'LONG' else -trade['kaldırac'])
             pnl_usd = (trade['margin'] * pnl_pct) / 100
             
-            # TAHMİNİ LİQ HESABI (Basit formül: 10x için girişin +- %10'u)
+            # LİQ HESABI (10x için girişin +- %9-10'u)
             liq_price = trade['entry'] * (0.91 if trade['side'] == 'LONG' else 1.09)
             liq_dist = abs(curr_p - liq_price) / curr_p * 100
 
@@ -69,17 +75,14 @@ if active_trades:
                 with col1:
                     st.write(f"**{trade['coin']}**")
                     st.caption(f"{trade['side']} 10x")
-                    st.error(f"💀 Liq: {liq_price:.5f}") # LİQ FİYATI
-                
+                    st.error(f"💀 Liq: {liq_price:.4f}")
                 with col2:
                     st.write(f"📌 Giriş: {trade['entry']} | ⚡ Anlık: {curr_p}")
                     st.write(f"🎯 TP: {trade['tp']} | 🛡️ SL: {trade['sl']}")
                     st.write(f"📏 Liq Mesafe: %{liq_dist:.2f}")
-                
                 with col3:
                     st.metric("P/L USD", f"${pnl_usd:.2f}", f"{pnl_pct:.2f}%")
 
-            # Kapanış Kontrolü
             if (trade['side'] == 'LONG' and (curr_p >= trade['tp'] or curr_p <= trade['sl'])) or \
                (trade['side'] == 'SHORT' and (curr_p <= trade['tp'] or curr_p >= trade['sl'])):
                 st.session_state.balance += pnl_usd
@@ -101,7 +104,6 @@ if len(active_trades) < 5:
             side = None
             if a['rsi'] < 38 and a['price'] < a['bb_l']: side = "LONG"
             elif a['rsi'] > 62 and a['price'] > a['bb_h']: side = "SHORT"
-            
             if side:
                 new_trade = {
                     "coin": s, "side": side, "entry": a['price'],
@@ -113,11 +115,18 @@ if len(active_trades) < 5:
                 save_db({"balance": st.session_state.balance, "trades": st.session_state.trades})
                 st.rerun()
 
-# GEÇMİŞ
+# --- GEÇMİŞ TABLOSU (HATA DÜZELTİLMİŞ) ---
 st.subheader("📜 İşlem Geçmişi")
 if st.session_state.trades:
-    df_h = pd.DataFrame([t for t in st.session_state.trades if t['status'] == 'Kapandı'])
-    if not df_h.empty: st.dataframe(df_h[['time', 'coin', 'side', 'entry', 'pnl_final']][::-1], use_container_width=True)
+    closed_trades = [t for t in st.session_state.trades if t['status'] == 'Kapandı']
+    if closed_trades:
+        df_h = pd.DataFrame(closed_trades)
+        # Sütunların varlığını kontrol et
+        needed_cols = ['time', 'coin', 'side', 'entry', 'pnl_final']
+        for col in needed_cols:
+            if col not in df_h.columns: df_h[col] = "Veri Yok"
+        
+        st.dataframe(df_h[needed_cols][::-1], use_container_width=True)
 
 time.sleep(15)
 st.rerun()
