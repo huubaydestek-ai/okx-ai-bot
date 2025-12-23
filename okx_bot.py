@@ -12,6 +12,7 @@ exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
 DB_FILE = "global_hyper_db.json"
 
 def load_db():
+    # Kasan 971$ olarak sabitlendi
     default = {"balance": 971.0, "trades": []}
     if os.path.exists(DB_FILE):
         try:
@@ -32,7 +33,7 @@ def get_pdf_signal(df):
     body = abs(last['c'] - last['o']) + 0.000001
     rsi = ta.momentum.rsi(df['c'], window=14).iloc[-1]
     
-    # Oranları "Aksiyon" için optimize ettim: 1.6'dan 1.25'e (Hızlı yakalaması için)
+    # Aksiyon için optimize oranlar: 1.25x İğne
     is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 1.25) and rsi < 45
     is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 1.25) and rsi > 55
     is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and rsi < 50
@@ -71,7 +72,7 @@ if active_trades:
                         save_db(st.session_state.balance, st.session_state.trades)
                         st.rerun()
 
-                # TP/SL: %7.5 TP veya %5 SL
+                # TP/SL Hedefleri
                 if pnl_pct >= 7.5 or pnl_pct <= -5.0:
                     st.session_state.balance += pnl_usd
                     st.session_state.trades[idx]['status'] = 'Kapandı'
@@ -79,20 +80,37 @@ if active_trades:
                     st.rerun()
             except: continue
 
-# --- HYPER SCANNER (HIZLI TARAMA) ---
+# --- HYPER SCANNER (HATASIZ VE HIZLI) ---
 if len(active_trades) < 5:
     with st.status("⚡ Yapay Zeka Marketin Altını Üstüne Getiriyor...", expanded=True):
         markets = exchange.load_markets()
         all_syms = [s for s, m in markets.items() if m.get('swap') and '/USDT' in s]
         
-        # Hız için parite sayısını ve hacim limitini (300k$) optimize ettik
         for s in all_syms:
             if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
             if len([t for t in st.session_state.trades if t.get('status') == 'Açık']) >= 5: break
             
             try:
-                # Sadece hareket olan tahtalar
-                if exchange.fetch_ticker(s).get('quoteVolume', 0) < 300000: continue
+                # 300k$ Hacim alt sınırı
+                ticker = exchange.fetch_ticker(s)
+                if ticker.get('quoteVolume', 0) < 300000: continue
 
                 bars = exchange.fetch_ohlcv(s, timeframe='5m', limit=15)
-                df = pd.DataFrame(bars,
+                # Buradaki parantez hatası düzeltildi:
+                df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
+                side = get_pdf_signal(df)
+                
+                if side:
+                    margin_val = st.session_state.balance * 0.10
+                    new_trade = {
+                        "coin": s, "side": side, "entry": df['c'].iloc[-1],
+                        "margin": round(margin_val, 2), "status": "Açık",
+                        "time": str(datetime.now())
+                    }
+                    st.session_state.trades.append(new_trade)
+                    save_db(st.session_state.balance, st.session_state.trades)
+                    st.rerun()
+            except: continue
+
+time.sleep(2)
+st.rerun()
