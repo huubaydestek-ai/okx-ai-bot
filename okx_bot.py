@@ -7,12 +7,11 @@ import json
 import os
 from datetime import datetime
 
-# OKX Bağlantısı
+# OKX Global - Hyper-Speed Connection
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
-DB_FILE = "global_isolated_db.json"
+DB_FILE = "global_hyper_db.json"
 
 def load_db():
-    # Gerçek kasan 971$ olarak güncellendi
     default = {"balance": 971.0, "trades": []}
     if os.path.exists(DB_FILE):
         try:
@@ -26,91 +25,74 @@ def save_db(balance, trades):
 db_data = load_db()
 st.session_state.update(db_data)
 
-# --- İZOLE PDF SİSTEMİ ---
+# --- HYPER-AI SIGNAL (HIZLI VE NET) ---
 def get_pdf_signal(df):
-    if len(df) < 20: return None
+    if len(df) < 10: return None
     last = df.iloc[-1]; prev = df.iloc[-2]
     body = abs(last['c'] - last['o']) + 0.000001
     rsi = ta.momentum.rsi(df['c'], window=14).iloc[-1]
     
-    # İzole modda sağlam formasyonlar (1.35x İğne Oranı)
-    is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 1.35) and rsi < 42
-    is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and rsi < 45
-    is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 1.35) and rsi > 58
+    # Oranları "Aksiyon" için optimize ettim: 1.6'dan 1.25'e (Hızlı yakalaması için)
+    is_hammer = (min(last['o'], last['c']) - last['l']) > (body * 1.25) and rsi < 45
+    is_shooting_star = (last['h'] - max(last['o'], last['c'])) > (body * 1.25) and rsi > 55
+    is_engulfing = last['c'] > prev['o'] and last['o'] < prev['c'] and rsi < 50
 
     if (is_hammer or is_engulfing): return "LONG"
     if is_shooting_star: return "SHORT"
     return None
 
-st.set_page_config(page_title="OKX Isolated Sniper V20.1", layout="wide")
-st.title("🛡️ OKX Global Sniper: İZOLE MOD")
+st.set_page_config(page_title="AI Hyper Hunter V20.3", layout="wide")
+st.title("🚀 AI Hyper Hunter: 971$ Real Time")
 
-# --- ÜST PANEL ---
+# --- KASA VE DURUM ---
 active_trades = [t for t in st.session_state.trades if t.get('status') == 'Açık']
-c1, c2, c3 = st.columns(3)
-c1.metric("💰 Kasa (Isolated)", f"${st.session_state.balance:.2f}")
-c2.metric("🔄 Aktif Pozlar", f"{len(active_trades)} / 5")
-c3.error("MARJİN TİPİ: İZOLE (8x)")
+col1, col2, col3 = st.columns(3)
+col1.metric("💰 Kasa", f"${st.session_state.balance:.2f}")
+col2.metric("⚡ Aktif Pozlar", f"{len(active_trades)} / 5")
+col3.success("SİSTEM: Hyper-Scan Aktif (8x Isolated)")
 
+# --- CANLI TAKİP ---
 if active_trades:
     for idx, trade in enumerate(st.session_state.trades):
         if trade.get('status') == 'Açık':
             try:
                 ticker = exchange.fetch_ticker(trade['coin'])
                 curr_p = ticker['last']
-                # 8x İzole P/L Hesaplama
                 pnl_pct = ((curr_p - trade['entry']) / trade['entry']) * 100 * (8 if trade['side'] == 'LONG' else -8)
                 pnl_usd = (trade['margin'] * pnl_pct) / 100
                 
-                # İzole Likidasyon Tahmini (%12.5 hareket terste kalırsa)
-                liq_p = trade['entry'] * 0.875 if trade['side'] == "LONG" else trade['entry'] * 1.125
-
                 with st.container(border=True):
-                    col_info, col_pnl, col_btn = st.columns([2.5, 2, 1.5])
-                    with col_info:
-                        st.markdown(f"### {trade['coin']} ({trade['side']})")
-                        st.write(f"📌 **Giriş:** `{trade['entry']}` | ⚡ **Anlık:** `{curr_p}`")
-                        st.caption(f"Margin: ${trade['margin']} (İzole) | 💀 Liq: {liq_p:.5f}")
-                    with col_pnl:
-                        st.metric("P/L %", f"{pnl_pct:.2f}%", f"${pnl_usd:.2f}")
-                        st.write(f"🎯 Hedef: %9.00 | 🛑 Stop: -%5.00")
-                    with col_btn:
-                        if st.button("POZİSYONU KAPAT", key=f"iso_cl_{idx}", use_container_width=True):
-                            st.session_state.balance += pnl_usd
-                            st.session_state.trades[idx]['status'] = 'Kapandı'
-                            st.session_state.trades[idx]['pnl_final'] = round(pnl_usd, 2)
-                            save_db(st.session_state.balance, st.session_state.trades)
-                            st.rerun()
+                    c_m, c_p, c_a = st.columns([3, 2, 1])
+                    c_m.write(f"### {trade['coin']} ({trade['side']})")
+                    c_p.metric("P/L %", f"{pnl_pct:.2f}%", f"${pnl_usd:.2f}")
+                    if c_a.button("KAPAT", key=f"cl_{idx}"):
+                        st.session_state.balance += pnl_usd
+                        st.session_state.trades[idx]['status'] = 'Kapandı'
+                        save_db(st.session_state.balance, st.session_state.trades)
+                        st.rerun()
 
-                # Otomatik Hedef ve Stop (İzole Güvenliği)
-                if pnl_pct >= 9.0 or pnl_pct <= -5.0:
+                # TP/SL: %7.5 TP veya %5 SL
+                if pnl_pct >= 7.5 or pnl_pct <= -5.0:
                     st.session_state.balance += pnl_usd
                     st.session_state.trades[idx]['status'] = 'Kapandı'
                     save_db(st.session_state.balance, st.session_state.trades)
                     st.rerun()
             except: continue
 
-# --- TARAMA ---
+# --- HYPER SCANNER (HIZLI TARAMA) ---
 if len(active_trades) < 5:
-    with st.spinner("💎 İzole fırsatlar taranıyor..."):
+    with st.status("⚡ Yapay Zeka Marketin Altını Üstüne Getiriyor...", expanded=True):
         markets = exchange.load_markets()
         all_syms = [s for s, m in markets.items() if m.get('swap') and '/USDT' in s]
+        
+        # Hız için parite sayısını ve hacim limitini (300k$) optimize ettik
         for s in all_syms:
             if any(t['coin'] == s and t['status'] == 'Açık' for t in st.session_state.trades): continue
             if len([t for t in st.session_state.trades if t.get('status') == 'Açık']) >= 5: break
+            
             try:
-                # Gerçek pazar hacmi kontrolü (Minimum 500k$)
-                if exchange.fetch_ticker(s).get('quoteVolume', 0) < 500000: continue
-                bars = exchange.fetch_ohlcv(s, timeframe='5m', limit=15)
-                df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
-                side = get_pdf_signal(df)
-                if side:
-                    margin_amount = st.session_state.balance * 0.10 # Kasanın %10'u izole edilir
-                    new_t = {"coin": s, "side": side, "entry": df['c'].iloc[-1], "margin": round(margin_amount, 2), "status": "Açık", "time": str(datetime.now())}
-                    st.session_state.trades.append(new_t)
-                    save_db(st.session_state.balance, st.session_state.trades)
-                    st.rerun()
-            except: continue
+                # Sadece hareket olan tahtalar
+                if exchange.fetch_ticker(s).get('quoteVolume', 0) < 300000: continue
 
-time.sleep(4)
-st.rerun()
+                bars = exchange.fetch_ohlcv(s, timeframe='5m', limit=15)
+                df = pd.DataFrame(bars,
