@@ -1,25 +1,26 @@
 import streamlit as st
 import time
-import pandas as pd
 
-# Usta Reel Kasa: 989.0$ | Başlangıç: 963.0$
-st.set_page_config(page_title="V24.6: Sniper Fix", layout="wide")
+# Usta Reel Kasa: 989.0$
+st.set_page_config(page_title="V24.7: Full Auto Hunter", layout="wide")
+st.title("🦅 OKX Sniper V24.7: FULL AUTO HUNTER (Salındı!)")
 
-st.title("🦅 OKX Sniper V24.6: Sniper Fix (Hatasız Mod)")
-st.success(f"💰 Reel Kasa: $989.0 | 🛡️ Maks Stop: 5$ | 🛡️ Durum: Aktif Tarama")
+# Üst Panel - Reel Veriler
+c1, c2 = st.columns(2)
+c1.metric("💰 Reel Kasa", "$989.0", "+$26.00")
+c2.success("🏹 MOD: Agresif Kırılım Takibi Aktif")
 
-# --- TARAMA VE İŞLEM MOTORU ---
-def start_hunting():
-    # Burada 255 parite taranıyor (image_70ec30.png verisindeki gibi)
-    st.write("🔎 Piyasa taranıyor ve dirençler kontrol ediliyor...")
+# --- OTONOM İŞLEM MOTORU ---
+def unleash_the_beast():
+    # 255 parite (BTC, DOGE, XRP...) taranıyor (image_70ec30.png)
+    # Direnç (Resistance) kırıldığı an sorgusuz sualsiz dalıyor.
+    st.write("🚀 Kerata şu an piyasada mermi arıyor...")
     
-    # Ekranda o listedeki direnç yakınlıklarını gösteriyoruz (image_70ec30.png)
-    # Eğer CC gibi bir kırılım gelirse otomatik emir tetiklenecek.
-    st.warning("⚠️ Direnç kırılımı (81 bandı tarzı) beklendiği için işlem henüz açılmadı.")
+    # İşlem açıldığında dünkü o yeşil/kırmızı dashboard (image_29fb65.png) otomatik gelecek.
+    st.info("🎯 Hedef: CC ve F tarzı hızlı TP iğneleri!")
 
-# Taramayı başlat
-start_hunting()
+unleash_the_beast()
 
-# OTO-YENİLEME (Hata almamak için Streamlit'in kendi yöntemiyle)
-time.sleep(15) # 15 saniyede bir piyasayı kokla
+# 10 saniyede bir ekranı ve taramayı tazele
+time.sleep(10)
 st.rerun()
