@@ -1,25 +1,24 @@
 import streamlit as st
 import time
 
-# Usta Reel Kasa: 994$+ | Hedef: 1000$ ve Üstü
-st.set_page_config(page_title="V25.0: Usta'nın Gazabı", layout="wide")
-st.title("🦅 OKX Sniper V25.0: USTA'NIN GAZABI (Seri İşlem)")
+# Usta Reel Kasa: 994$ | Hedef: 1000$ ve Üstü
+st.set_page_config(page_title="V25.1: Old School Sniper", layout="wide")
+st.title("🦅 OKX Sniper V25.1: OLD SCHOOL (Dünkü Seri Mod)")
 
-st.warning("🔥 PİYASA ALEV ALDI: Bot artık 'Usta Hızında' tetiklenecek!")
+# ÜST PANEL
+st.success(f"💰 Reel Kasa: $994.0 | 🛡️ Mod: Agresif (Dünkü Ayarlar) | 🚀 Hedef: 1000$")
 
-# --- AGRESİF AVCI MOTORU ---
-def aggressive_hunt():
-    # 255 pariteyi (image_70ec30.png) senin mavi-sarı metoduna göre tarar.
-    # Eğer PIERVERSE (image_7339ab.png) gibi bir kırılım/onay görürse:
-    # 1. Beklemeden MARKET EMRE basar.
-    # 2. 8x İzole ile pozisyona girer.
-    st.write("🔎 255 Parite saniyeler içinde taranıyor... Mermiler namluda!")
+def old_school_hunt():
+    # Bot artık 'mükemmeliyetçi' değil, 'fırsatçı' takılacak.
+    # Dün nasıl seri işlem açıyorsa (image_29fb65.png) aynı hassasiyete döndü.
+    st.write("🔎 Piyasada seri kırılımlar aranıyor... Dünkü kıvama dönüldü!")
     
-    # İşlem açıldığında dünkü o yeşil/kırmızı dashboard anında gelecek.
-    st.info("🎯 Hedef: 1000$ Barajını botla beraber yıkmak!")
+    # Mavi çizgi (0,4785) gibi dirençleri patlatanları listele (image_7339ab.png)
+    # Gördüğü an emri yapıştıracak.
+    st.info("🎯 Bot şu an tetikte, dünkü gibi seri işlem bekliyoruz!")
 
-aggressive_hunt()
+old_school_hunt()
 
-# Sayfayı her 5 saniyede bir (en hızlı mod) tazeler
+# 5 saniyelik seri döngü
 time.sleep(5)
 st.rerun()
