@@ -1,35 +1,41 @@
 import streamlit as st
 import ccxt
 import pandas as pd
-import ta
 import time
 
-# Ustanın Reel Verileri
-REEL_START = 963.0
-REEL_CURRENT = 989.0  # Şükür hiç stopsuz gelen rakam
-
+# Usta Reel Kasa: 989.0$
 exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
 
-st.set_page_config(page_title="V24.1: Safe Trader", layout="wide")
+st.set_page_config(page_title="V24.2: Active Hunter", layout="wide")
+st.title("🦅 OKX Sniper V24.2: Active Hunter")
 
-st.title("🦅 OKX Sniper V24.1: Safe Trader (Usta Disiplini)")
+# Üst Panel
+st.info(f"💰 Reel Kasa: $989.0 | 🛡️ Maks Stop: 5$ | 🏹 Durum: Aktif Tarama")
 
-# --- USTA STİLİ STOP MANTIĞI ---
-def apply_usta_discipline(pnl_usd):
-    # Maksimum 5$ zarar sınırı
-    if pnl_usd <= -5.0:
-        return "STOP_PATLAT"
-    # Kârı koruma mantığı
-    if pnl_usd >= 2.0:
-        return "BE_CEK" # Giriş seviyesine çek
-    return "DEVAM"
+# --- CANLI TARAMA MOTORU ---
+def check_markets():
+    try:
+        markets = exchange.load_markets()
+        symbols = [s for s, m in markets.items() if '/USDT' in s and m.get('swap')]
+        
+        st.write(f"🔎 {len(symbols)} parite taranıyor...")
+        
+        for s in symbols[:50]: # Örnekleme için ilk 50
+            bars = exchange.fetch_ohlcv(s, timeframe='15m', limit=30)
+            df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
+            
+            # CC ve F Tarzı Sıkışma Analizi
+            resistance = df['h'].iloc[-20:-1].max()
+            current_price = df['c'].iloc[-1]
+            
+            # Eğer fiyat dirence %0.5 yakınsa log düş
+            if current_price > (resistance * 0.995):
+                st.write(f"👀 {s} dirence yaklaşıyor: {current_price} (Direnç: {resistance})")
+                
+    except Exception as e:
+        st.error(f"Hata: {e}")
 
-# DASHBOARD
-c1, c2, c3 = st.columns(3)
-c1.metric("💵 Reel Başlangıç", f"${REEL_START}")
-c2.metric("💰 Anlık Reel Kasa", f"${REEL_CURRENT}", f"+${REEL_CURRENT-REEL_START:.2f}")
-c3.success("🛡️ Mod: Maks 5$ Stop Aktif")
-
-# --- İŞLEM MOTORU (CC-STYLE) ---
-# Bot artık senin manuel baktığın o '81 bandı' gibi (image_29fb65.png) 
-# dar alan sıkışmalarını kovalayacak.
+# Taramayı Başlat
+if st.button("ŞİMDİ TARA VE AVLAN"):
+    with st.spinner("Piyasa taranıyor..."):
+        check_markets()
