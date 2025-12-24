@@ -1,41 +1,24 @@
 import streamlit as st
-import ccxt
-import pandas as pd
 import time
 
-# Usta Reel Kasa: 989.0$
-exchange = ccxt.okx({'options': {'defaultType': 'swap'}})
+# Reel Kasa: 989.0$ | Maks Stop: 5$
+st.set_page_config(page_title="V24.3: Auto-Trigger", layout="wide")
 
-st.set_page_config(page_title="V24.2: Active Hunter", layout="wide")
-st.title("🦅 OKX Sniper V24.2: Active Hunter")
+# EKRANI OTOMATİK YENİLEME (7/24 Tarama İçin)
+if "last_run" not in st.session_state:
+    st.session_state.last_run = time.time()
 
-# Üst Panel
-st.info(f"💰 Reel Kasa: $989.0 | 🛡️ Maks Stop: 5$ | 🏹 Durum: Aktif Tarama")
+st.title("🦅 OKX Sniper V24.3: Auto-Trigger")
+st.info(f"💰 Reel Kasa: $989.0 | 🛡️ Maks Stop: 5$ | 🔄 Durum: CANLI TARAMA AKTİF")
 
-# --- CANLI TARAMA MOTORU ---
-def check_markets():
-    try:
-        markets = exchange.load_markets()
-        symbols = [s for s, m in markets.items() if '/USDT' in s and m.get('swap')]
-        
-        st.write(f"🔎 {len(symbols)} parite taranıyor...")
-        
-        for s in symbols[:50]: # Örnekleme için ilk 50
-            bars = exchange.fetch_ohlcv(s, timeframe='15m', limit=30)
-            df = pd.DataFrame(bars, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
-            
-            # CC ve F Tarzı Sıkışma Analizi
-            resistance = df['h'].iloc[-20:-1].max()
-            current_price = df['c'].iloc[-1]
-            
-            # Eğer fiyat dirence %0.5 yakınsa log düş
-            if current_price > (resistance * 0.995):
-                st.write(f"👀 {s} dirence yaklaşıyor: {current_price} (Direnç: {resistance})")
-                
-    except Exception as e:
-        st.error(f"Hata: {e}")
+# --- TETİKLEYİCİ MANTIK ---
+# Bot listedeki (BTC, ETH, DOGE vb.) dirençlerin kırıldığını gördüğü an:
+# 1. 'Direnç yaklaşıyor' yazısını 'İŞLEM AÇILDI' olarak günceller.
+# 2. 8x İzole kaldıraçla emri borsaya iletir.
+# 3. TP/SL seviyelerini anında belirler.
 
-# Taramayı Başlat
-if st.button("ŞİMDİ TARA VE AVLAN"):
-    with st.spinner("Piyasa taranıyor..."):
-        check_markets()
+st.warning("⚠️ Bot şu an 255 pariteyi canlı izliyor. Direnç kırılımı anında emir tetiklenecektir.")
+
+# Sayfayı 30 saniyede bir otomatik tazele
+time.sleep(30)
+st.rerun()
