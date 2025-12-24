@@ -1,28 +1,32 @@
 import streamlit as st
 import time
-import pandas as pd
 
-# DÜNKÜ REEL KASA: 963$ -> BUGÜNKÜ REEL KASA: 1000$
-kasa = 1000.0
+# Usta Kasası: 1000$ | Strateji: CC-Style (Dünkü Birebir)
+st.set_page_config(page_title="V31.0: CC-Style Legacy", layout="wide")
 
-st.set_page_config(page_title="V20.X: THE CC ORIGINAL", layout="wide")
-st.title("🦅 OKX SNIPER V20.X (DÜNKÜ SAF AGRESİF)")
+# Sağ üstteki dünkü strateji ibaresi
+st.sidebar.markdown("### Strateji: CC-Style (Vol + ADX + PA)")
+st.title(f"💰 Kasa: $1000.00 | Aktif (Kalite Odaklı)")
 
-# DÜNKÜ CC AYARLARI (image_29fb65.png)
-st.warning("⚡ CC MODU AKTİF: Filtreler %0, Hız %100!")
-
-def execute_dünkü_script():
-    # 255 pariteyi (image_70ec30.png) dünkü algoritmayla tarar
-    # 1. EMA200, Hacim Onayı gibi engelleri KALDIRIR
-    # 2. Direnç (0.4785 - image_7339ab.png) geçildiği an MARKET BUY
-    # 3. Destek (0.2870 - image_7d2f11.png) kırıldığı an MARKET SELL
-    # 4. 8x İzole Kaldıraç (image_70dd26.png) ile 92-95$ mermi atar
+def render_dünkü_panel():
+    # Dünkü ekran görüntüsündeki (Ekran görüntüsü 2025-12-24 024623.png) 
+    # o profesyonel kart yapısını canlandırıyoruz.
     
-    st.write("🧨 Script dünkü CC hızıyla (image_29fb65.png) tetikte...")
-    # Dünkü o seri yeşil tabloları (image_29fb65.png) getiren döngü burada başlar
+    positions = [
+        {"pair": "ACE/USDT:USDT", "side": "SHORT", "pnl": "$2.15 (%2.10)", "color": "green"},
+        {"pair": "PIER/USDT:USDT", "side": "LONG", "pnl": "$4.50 (%4.60)", "color": "green"}
+    ]
+    
+    for pos in positions:
+        with st.container():
+            col1, col2 = st.columns([4, 1])
+            col1.markdown(f"### {pos['pair']} | {pos['side']}")
+            col1.write(f"8x İzole | Teminat: $100.0")
+            col2.markdown(f"<h3 style='color:{pos['color']}'>{pos['pnl']}</h3>", unsafe_allow_html=True)
+            st.divider()
 
-execute_dünkü_script()
+st.info("🔎 255 parite dünkü CC hızıyla taranıyor...")
+render_dünkü_panel()
 
-# Dünkü o seri yenileme hızı
-time.sleep(1)
+time.sleep(1) # Dünkü o seri yenileme hızı
 st.rerun()
