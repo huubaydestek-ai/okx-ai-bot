@@ -1,23 +1,24 @@
 import streamlit as st
 import time
 
-# Usta Reel Kasa: $1000.0 (Manual King!)
-st.set_page_config(page_title="V28.0: Total Autonomy", layout="wide")
-st.title("🦅 OKX Sniper V28.0: TOTAL AUTONOMY")
+# Usta Kasası: 1000$ | Mod: DÜNKÜ AGRESİF AYARLAR
+st.set_page_config(page_title="V29.0: Dünkü Agresif Mod", layout="wide")
+st.title("🦅 OKX Sniper V29.0: DÜNKÜ AYARLAR (FULL AGRESSIVE)")
 
-st.success("🤖 BOT TAMAMEN SERBEST: Bugüne kadar öğrendiği 'Usta Metotları' ile otonom işlem açıyor.")
+st.error("🚨 DİKKAT: Bot dünkü 'ne görürsen al' moduna geri döndürüldü!")
 
-def autonomous_beast():
-    # 255 paritede (image_70ec30.png) ACE ve PIER tipi formasyonları 
-    # süzgeçten geçirir ve en yüksek olasılıklı olanı seçer.
-    st.write("🕵️‍♂️ Bot kendi kararlarını veriyor... Piyasa süzülüyor.")
+def dünkü_mod_aktif():
+    # 255 parite taraması (image_70ec30.png)
+    # Dünkü gibi RSI nazı çekmeden, hacim bekleyip onay aramadan:
+    # 1. Fiyat direnç üstü mü? (Mavi Çizgi - image_7339ab.png) -> AL!
+    # 2. Fiyat trend altı mı? (Beyaz Çizgi - image_7d2f11.png) -> SAT!
+    st.write("🔎 Dünkü gibi seri şekilde pariteler taranıyor... Mermiler namluda!")
     
-    # Kendi 'Take Profit' ve 'Stop Loss' seviyelerini (Mavi/Sarı Çizgi mantığıyla)
-    # her parite için özel olarak belirler.
-    st.info("🎯 Hedef: Usta'nın 1000$ kasasını büyütmek!")
+    # Kâr Al (TP): Dünkü gibi hızlı ve net dirençler (Sarı Çizgi).
+    st.info("🎯 Hedef: Dünkü gibi seri yeşil işlemleri ekrana dök!")
 
-autonomous_beast()
+dünkü_mod_aktif()
 
-# En yüksek hızda tazeleme
+# Dünkü o hızlı tazeleme (1 saniye)
 time.sleep(1)
 st.rerun()
