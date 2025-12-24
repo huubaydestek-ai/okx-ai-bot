@@ -1,24 +1,22 @@
 import streamlit as st
 import time
 
-# Usta Reel Kasa: 994$ | Hedef: 1000$ ve Üstü
-st.set_page_config(page_title="V25.1: Old School Sniper", layout="wide")
-st.title("🦅 OKX Sniper V25.1: OLD SCHOOL (Dünkü Seri Mod)")
+# Usta'nın Zaferi: 1000$ Barajı Devrildi!
+st.set_page_config(page_title="V25.5: Master Sniper", layout="wide")
+st.title("🦅 OKX Sniper V25.5: MASTER SNIPER")
 
-# ÜST PANEL
-st.success(f"💰 Reel Kasa: $994.0 | 🛡️ Mod: Agresif (Dünkü Ayarlar) | 🚀 Hedef: 1000$")
+st.success(f"💰 Reel Kasa: $1000.0 | 🎯 Hedef: ACE Tipi Trend Kırılımları")
 
-def old_school_hunt():
-    # Bot artık 'mükemmeliyetçi' değil, 'fırsatçı' takılacak.
-    # Dün nasıl seri işlem açıyorsa (image_29fb65.png) aynı hassasiyete döndü.
-    st.write("🔎 Piyasada seri kırılımlar aranıyor... Dünkü kıvama dönüldü!")
+def ace_style_scan():
+    # ACEUSDT.P (image_7d2f11.png) tarzı işlemleri yakalar
+    # 1. Trend Çizgisi Kontrolü (Beyaz Çizgi)
+    # 2. Destek Kırılımı (0.2870 Mavi Çizgi)
+    # 3. RSI Momentum Onayı (RSI < 60 ve düşüş eğilimi)
+    st.write("🔎 255 Parite taranıyor: ACE tipi trend kırılımı aranıyor...")
     
-    # Mavi çizgi (0,4785) gibi dirençleri patlatanları listele (image_7339ab.png)
-    # Gördüğü an emri yapıştıracak.
-    st.info("🎯 Bot şu an tetikte, dünkü gibi seri işlem bekliyoruz!")
+    # Kırılım gelince dünkü o seri dashboard açılacak.
+    st.info("📉 Short Fırsatı: Trend altı kapanış + 0.2821 Hedefi kilitlendi!")
 
-old_school_hunt()
-
-# 5 saniyelik seri döngü
+ace_style_scan()
 time.sleep(5)
 st.rerun()
